@@ -79,7 +79,8 @@ for ext in pdf xdv dvi aux log fls fdb_latexmk synctex.gz; do
 done
 
 # The source is untrusted: no network, no rc files (a latexmkrc is Perl),
-# no shell escape. TEXMFVAR is writable scratch for font caches under a
+# and only TeX's restricted shell escape (its built-in allowlist, e.g.
+# repstopdf for .eps figures), as on arXiv and Overleaf. TEXMFVAR is writable scratch for font caches under a
 # non-root user. Host-side logs live outside the mounted tree.
 LOGDIR=$(mktemp -d "${TMPDIR:-/tmp}/latexml-lab-log.XXXXXX")
 trap 'rm -rf "$WORK" "$LOGDIR"' EXIT
@@ -90,7 +91,7 @@ docker run --rm --network none \
     -e TEXMFVAR=/tmp/texmf-var -e HOME=/tmp \
     -v "$WORK:/work" -w "/work/$DIR" \
     "$IMAGE" \
-    latexmk -norc "$FLAG" -no-shell-escape -interaction=nonstopmode -halt-on-error -file-line-error "./$BASE.tex" \
+    latexmk -norc "$FLAG" -latexoption=-shell-restricted -interaction=nonstopmode -halt-on-error -file-line-error "./$BASE.tex" \
     > "$LOGDIR/latexmk.out" 2>&1 || STATUS=$?
 # The compile may have created links; check before reading anything back.
 refuse_links "The compiled tree"
