@@ -105,6 +105,37 @@ if [ "$STATUS" -ne 0 ] || [ ! -f "$WORK/$DIR/$BASE.pdf" ]; then
     exit 1
 fi
 
+PDF="$WORK/$DIR/$BASE.pdf"
+
+# A large PDF is usually oversampled figures (a 512 px image printed a
+# few millimetres wide). Ghostscript resamples images above 450 ppi to
+# 300 ppi and leaves text, fonts and links alone; its output is kept only
+# when smaller. Dates, XMP and the ID are omitted so the bytes stay
+# deterministic (qpdf adds a content-derived ID below).
+GS_MIN_BYTES="${LATEXML_LAB_GS_MIN_BYTES:-8000000}"
+if [ "$(wc -c < "$PDF" | tr -d ' ')" -gt "$GS_MIN_BYTES" ]; then
+    docker run --rm --network none \
+        --user "$(id -u):$(id -g)" \
+        -v "$WORK:/work" -w "/work/$DIR" \
+        "$IMAGE" \
+        gs -q -dSAFER -dBATCH -dNOPAUSE -sDEVICE=pdfwrite -dCompatibilityLevel=1.7 \
+            -dOmitInfoDate -dOmitID -dOmitXMP \
+            -dDetectDuplicateImages=true -dPassThroughJPEGImages=true \
+            -dDownsampleColorImages=true -dColorImageDownsampleType=/Bicubic \
+            -dColorImageResolution=300 -dColorImageDownsampleThreshold=1.5 \
+            -dDownsampleGrayImages=true -dGrayImageDownsampleType=/Bicubic \
+            -dGrayImageResolution=300 -dGrayImageDownsampleThreshold=1.5 \
+            -dDownsampleMonoImages=true -dMonoImageResolution=600 -dMonoImageDownsampleThreshold=1.5 \
+            -sOutputFile="./$BASE.small.pdf" "./$BASE.pdf"
+    refuse_links "The compressed tree"
+    BEFORE=$(wc -c < "$PDF" | tr -d ' ')
+    AFTER=$(wc -c < "$WORK/$DIR/$BASE.small.pdf" | tr -d ' ')
+    if [ "$AFTER" -lt "$BEFORE" ]; then
+        echo "pdf: images resampled to 300 ppi, $BEFORE -> $AFTER bytes"
+        PDF="$WORK/$DIR/$BASE.small.pdf"
+    fi
+fi
+
 qpdf --warning-exit-0 --object-streams=generate --compression-level=9 --recompress-flate \
-    --deterministic-id "$WORK/$DIR/$BASE.pdf" "$OUT_PDF"
+    --deterministic-id "$PDF" "$OUT_PDF"
 echo "pdf: wrote $OUT_PDF ($(wc -c < "$OUT_PDF" | tr -d ' ') bytes)"
