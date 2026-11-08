@@ -78,6 +78,14 @@ jobs:
           pdftotext "$RUNNER_TEMP/l.pdf" - | grep -q '42'
           ./pdf.sh test/fixtures/lualatex "$RUNNER_TEMP/l2.pdf"
           cmp "$RUNNER_TEMP/l.pdf" "$RUNNER_TEMP/l2.pdf"
+          # Oversampled images are resampled, deterministically.
+          LATEXML_LAB_GS_MIN_BYTES=0 ./pdf.sh test/fixtures/hires "$RUNNER_TEMP/h1.pdf" | tee "$RUNNER_TEMP/pdf.log"
+          grep -q 'resampled to 300 ppi' "$RUNNER_TEMP/pdf.log"
+          LATEXML_LAB_GS_MIN_BYTES=0 ./pdf.sh test/fixtures/hires "$RUNNER_TEMP/h2.pdf"
+          cmp "$RUNNER_TEMP/h1.pdf" "$RUNNER_TEMP/h2.pdf"
+          pdfimages -list "$RUNNER_TEMP/h1.pdf" | awk 'NR>2 && $13+0 > 450 { print "image still at " $13 " ppi"; bad=1 } END { exit bad }'
+          # An .eps figure converts under restricted shell escape.
+          ./pdf.sh test/fixtures/eps "$RUNNER_TEMP/eps.pdf"
           # A latexmkrc in the source is ignored, and a shipped PDF is rebuilt.
           cp -r test/fixtures/xelatex "$RUNNER_TEMP/rc"
           echo 'die "latexmkrc ran";' > "$RUNNER_TEMP/rc/latexmkrc"
