@@ -136,6 +136,8 @@ if [ "$(wc -c < "$PDF" | tr -d ' ')" -gt "$GS_MIN_BYTES" ]; then
     fi
 fi
 
-qpdf --warning-exit-0 --object-streams=generate --compression-level=9 --recompress-flate \
+# No --recompress-flate: it re-encodes PNG images without their PNG
+# predictor, which doubled baby-cl (12.4 → 23.5 MB).
+qpdf --warning-exit-0 --object-streams=generate --compression-level=9 \
     --deterministic-id "$PDF" "$OUT_PDF"
 echo "pdf: wrote $OUT_PDF ($(wc -c < "$OUT_PDF" | tr -d ' ') bytes)"
