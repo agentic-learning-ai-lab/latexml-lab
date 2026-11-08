@@ -81,6 +81,6 @@ if ! docker run --rm --network none \
     exit 1
 fi
 
-qpdf --object-streams=generate --compression-level=9 --recompress-flate \
+qpdf --warning-exit-0 --object-streams=generate --compression-level=9 --recompress-flate \
     --deterministic-id "$WORK/$DIR/$BASE.pdf" "$OUT_PDF"
 echo "pdf: wrote $OUT_PDF ($(wc -c < "$OUT_PDF" | tr -d ' ') bytes)"
