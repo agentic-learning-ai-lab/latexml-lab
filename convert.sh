@@ -198,6 +198,10 @@ else
     PV_ABS="$WORK/$TIKZ_PV"
     PREVIEW_TEX="$PV_ABS/$MAIN_DIR/$TIKZ_PREVIEW.tex"
     PREVIEW_PDF="$PV_ABS/$MAIN_DIR/$TIKZ_PREVIEW.pdf"
+    if [ -z "$TIKZ_REASON" ] && [ -e "$PV_ABS" ]; then
+        TIKZ_REASON="$TIKZ_PV already exists in the source"
+        PV_ABS=""
+    fi
     if [ -z "$TIKZ_REASON" ]; then
         mkdir -p "$PV_ABS"
         (cd "$WORK" && tar cf - --exclude "./$TIKZ_PV" --exclude ./out --exclude ./.tikz .) \
@@ -311,7 +315,7 @@ else
         fi
     fi
 
-    rm -rf "${PV_ABS:-$WORK/lxlab_tikz_preview}"
+    [ -n "$PV_ABS" ] && rm -rf "$PV_ABS"
 
     if [ -n "$TIKZ_REASON" ]; then
         echo "tikz: skipped ($TIKZ_REASON)"

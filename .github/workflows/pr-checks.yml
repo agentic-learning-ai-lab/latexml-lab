@@ -52,7 +52,10 @@ jobs:
           if grep '^Error:' "$RUNNER_TEMP/tikz/latexml.log"; then exit 1; fi
           node -e '
             const h = require(process.argv[1]).html;
-            if (!/<img[^>]*tikz-1/.test(h) && !/<img[^>]*x1\.png/.test(h)) { console.error("no pre-rendered picture"); process.exit(1); }
+            const m = /<img[^>]*x1\.png[^>]*width="(\d+)"/.exec(h);
+            if (!m) { console.error("no pre-rendered picture"); process.exit(1); }
+            // \resizebox{\textwidth}{!}: LaTeXML draws \textwidth as 660 px.
+            if (Number(m[1]) < 600) { console.error("picture " + m[1] + " px wide, expected about 660"); process.exit(1); }
             console.log("tikz fixture ok");
           ' "$RUNNER_TEMP/tikz/paper-content.json"
 

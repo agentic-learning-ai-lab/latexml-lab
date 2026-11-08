@@ -146,13 +146,17 @@ function cmdScan(root, mainRel, planPath) {
     // \if...\else...\fi, of which TeX runs one) holds one picture: plan
     // it once, where it first appears. If TeX really draws it twice, the
     // preview's page count no longer matches and convert.sh skips TikZ.
+    const all = scan(path.resolve(root), mainRel).map(f => ({ ...f, key: `${f.file}\t${f.start}\t${f.end}` }));
     const seen = new Set();
-    const found = scan(path.resolve(root), mainRel).filter(f => {
-        const key = `${f.file}\t${f.start}\t${f.end}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-    });
+    const found = all.filter(f => !seen.has(f.key) && seen.add(f.key));
+    // If repeated pictures appear in a different order later (branches
+    // that list the same files in another order), the page order of the
+    // preview is unknown: refuse rather than risk swapping figures.
+    const lastOrder = [...new Map(all.map((f, i) => [f.key, i])).entries()]
+        .sort((a, b) => a[1] - b[1]).map(([k]) => k);
+    if (lastOrder.join('\n') !== found.map(f => f.key).join('\n')) {
+        throw new Error('repeated tikzpictures appear in different orders');
+    }
     fs.mkdirSync(path.dirname(planPath), { recursive: true });
     fs.writeFileSync(
         planPath,
@@ -166,7 +170,15 @@ function cmdScan(root, mainRel, planPath) {
 // \scalebox{s}{...} becomes \includegraphics[width=W] / [scale=s] in place
 // of the whole wrapper: LaTeXML sizes a plain graphic correctly, while a
 // box transform around one renders at the wrong size.
-const WRAPPER = /\\(resizebox)\s*\{([^{}]*)\}\s*\{([^{}]*)\}\s*\{(?:\s|%[^\n]*\n)*$|\\(scalebox)\s*\{([^{}]*)\}\s*(?:\[[^\]]*\]\s*)?\{(?:\s|%[^\n]*\n)*$/;
+const WRAPPER = /\\(resizebox)\s*\{([^{}]*)\}\s*\{([^{}]*)\}\s*\{(?:\s|%[^\n]*\n)*$|\\(scalebox)\s*\{([^{}]*)\}\s*\{(?:\s|%[^\n]*\n)*$/;
+
+// \resizebox{W}{H} as \includegraphics options: both sizes when both are
+// given (resizebox may distort too), else the one that is.
+function sizeOpts(w, h) {
+    [w, h] = [w.trim(), h.trim()];
+    if (w !== '!' && h !== '!') return `[width=${w},height=${h}]`;
+    return w !== '!' ? `[width=${w}]` : h !== '!' ? `[height=${h}]` : '';
+}
 
 function absorbWrapper(text, start, end) {
     const m = WRAPPER.exec(text.slice(Math.max(0, start - 200), start));
@@ -174,8 +186,7 @@ function absorbWrapper(text, start, end) {
     if (!m || !close) return { start, end, opts: '' };
     let opts;
     if (m[1]) {
-        const [w, h] = [m[2].trim(), m[3].trim()];
-        opts = w !== '!' ? `[width=${w}]` : h !== '!' ? `[height=${h}]` : '';
+        opts = sizeOpts(m[2], m[3]);
     } else {
         opts = `[scale=${m[5].trim()}]`;
     }
@@ -242,20 +253,19 @@ function absorbInputWrappers(root, mainDir, files) {
     if (!only.size) return;
     const INPUT = String.raw`\\(?:input|include)\s*\{\s*([^}]+?)\s*\}`;
     const RESIZE = new RegExp(String.raw`\\resizebox\s*\{([^{}]*)\}\s*\{([^{}]*)\}\s*\{\s*` + INPUT + String.raw`\s*\}`, 'g');
-    const SCALE = new RegExp(String.raw`\\scalebox\s*\{([^{}]*)\}\s*(?:\[[^\]]*\]\s*)?\{\s*` + INPUT + String.raw`\s*\}`, 'g');
+    const SCALE = new RegExp(String.raw`\\scalebox\s*\{([^{}]*)\}\s*\{\s*` + INPUT + String.raw`\s*\}`, 'g');
     const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap(e =>
         e.isDirectory() ? walk(path.join(dir, e.name)) : e.name.endsWith('.tex') ? [path.join(dir, e.name)] : []);
     for (const file of walk(path.resolve(root))) {
         const text = fs.readFileSync(file, 'utf8');
         const out = text
             .replace(RESIZE, (m, w, h, name) => {
-                const pdf = only.get(name);
+                const pdf = only.get(path.posix.normalize(name));
                 if (!pdf) return m;
-                const opts = w.trim() !== '!' ? `[width=${w.trim()}]` : h.trim() !== '!' ? `[height=${h.trim()}]` : '';
-                return `\\includegraphics${opts}{${pdf}}`;
+                return `\\includegraphics${sizeOpts(w, h)}{${pdf}}`;
             })
             .replace(SCALE, (m, k, name) => {
-                const pdf = only.get(name);
+                const pdf = only.get(path.posix.normalize(name));
                 return pdf ? `\\includegraphics[scale=${k.trim()}]{${pdf}}` : m;
             });
         if (out !== text) fs.writeFileSync(file, out);
