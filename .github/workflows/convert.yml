@@ -2,7 +2,8 @@ name: Convert paper HTML
 
 # workflow_dispatch only. Called by `npm run paper:html -- <slug>` in the
 # site repo (build/paper_html.js), which passes the R2 tarball URL and
-# downloads the `latexml-lab-<slug>` artifact afterwards.
+# downloads the `latexml-lab-<slug>` artifact afterwards: paper-content.json,
+# assets/ and paper.pdf.
 
 on:
   workflow_dispatch:
@@ -49,6 +50,11 @@ jobs:
           mkdir -p src
           curl -fsSL "$TARBALL_URL" -o "$RUNNER_TEMP/source.tar.gz"
           tar -xzf "$RUNNER_TEMP/source.tar.gz" -C src
+
+      - name: Compile paper.pdf
+        run: |
+          sudo apt-get install -y -qq qpdf >/dev/null
+          ./pdf.sh src out/paper.pdf
 
       - name: Convert with ar5ivist
         env:

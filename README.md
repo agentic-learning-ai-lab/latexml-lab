@@ -19,6 +19,32 @@ The source directory holds the paper's `.tex` files, figures and `.bib` or
 and `latexml.log`. The first run pulls the `latexml/ar5ivist:2512.17` image,
 which is about 2.5 GB.
 
+## The PDF
+
+```bash
+./pdf.sh path/to/latex-source out/paper.pdf
+```
+
+`pdf.sh` compiles the same source with `latexmk` on TeX Live 2025
+(`texlive/texlive:TL2025-historic`, pinned by digest), then finalizes it
+with `qpdf`. The source is untrusted, so the compile has no network, no
+shell escape and no `latexmkrc`, and it always starts from scratch. The
+same source compiles to the same bytes, except in a document that uses
+TeX's random numbers or after a `qpdf` upgrade. It needs Docker and `qpdf`. The site's conversion workflow
+runs it beside `convert.sh`, and a failed compile fails the run.
+
+The engine is chosen in this order:
+
+1. The lab template, loaded from the main file or from a file it inputs:
+   `agenticlearning-xelatex` compiles with XeLaTeX (or LuaLaTeX with a
+   `%!TEX program = lualatex` comment) and `agenticlearning-lualatex` with
+   LuaLaTeX. The `-pdflatex` variant is refused.
+2. arXiv's `00README.json` compiler.
+3. A `%!TEX program = ...` comment in the main file.
+4. A LuaTeX-only package (`luacode`, `luatexja`) means LuaLaTeX; `fontspec`,
+   `unicode-math`, `polyglossia`, `xeCJK` or `mathspec` mean XeLaTeX.
+5. Otherwise pdfLaTeX.
+
 ## Additions to arXiv's pipeline
 
 Each step below runs before or after `latexmlc`, which itself runs unchanged.

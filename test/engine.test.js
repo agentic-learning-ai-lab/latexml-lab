@@ -1,0 +1,62 @@
+'use strict';
+
+const test = require('node:test');
+const assert = require('node:assert');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { engine } = require('../engine');
+
+function tree(files) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'engine-'));
+    for (const [name, body] of Object.entries(files)) {
+        fs.mkdirSync(path.dirname(path.join(root, name)), { recursive: true });
+        fs.writeFileSync(path.join(root, name), body);
+    }
+    return root;
+}
+
+test('defaults to pdflatex', () => {
+    assert.strictEqual(engine(tree({ 'main.tex': '\\documentclass{article}\n\\usepackage{graphicx}\n' }), 'main.tex'), 'pdflatex');
+});
+
+test('fontspec and the lab style need xelatex; a commented package does not', () => {
+    assert.strictEqual(engine(tree({ 'm.tex': '\\usepackage{amsmath,fontspec}\n' }), 'm.tex'), 'xelatex');
+    assert.strictEqual(engine(tree({ 'm.tex': '\\usepackage{agenticlearning-xelatex}\n' }), 'm.tex'), 'xelatex');
+    assert.strictEqual(engine(tree({ 'm.tex': '% \\usepackage{fontspec}\n' }), 'm.tex'), 'pdflatex');
+});
+
+test('the magic comment overrides packages, and 00README.json overrides both', () => {
+    const root = tree({ 'p/main.tex': '%!TEX program = lualatex\n\\usepackage{fontspec}\n' });
+    assert.strictEqual(engine(root, 'p/main.tex'), 'lualatex');
+    fs.writeFileSync(path.join(root, 'p/00README.json'), JSON.stringify({ process: { compiler: 'pdflatex' } }));
+    assert.strictEqual(engine(root, 'p/main.tex'), 'pdflatex');
+});
+
+test('the lab template never compiles with pdflatex', () => {
+    const readme = JSON.stringify({ process: { compiler: 'pdflatex' } });
+    assert.strictEqual(engine(tree({ 'main.tex': '\\usepackage{agenticlearning-xelatex}\n', '00README.json': readme }), 'main.tex'), 'xelatex');
+    assert.strictEqual(engine(tree({ 'main.tex': '%!TEX program = pdflatex\n\\usepackage{agenticlearning-xelatex}\n' }), 'main.tex'), 'xelatex');
+    assert.strictEqual(engine(tree({ 'main.tex': '%!TEX program = lualatex\n\\usepackage{agenticlearning-xelatex}\n' }), 'main.tex'), 'lualatex');
+    assert.strictEqual(engine(tree({ 'main.tex': '\\usepackage{agenticlearning-lualatex}\n' }), 'main.tex'), 'lualatex');
+    assert.throws(() => engine(tree({ 'main.tex': '\\usepackage{agenticlearning-pdflatex}\n' }), 'main.tex'), /XeLaTeX/);
+});
+
+test('finds the template through spacing, \input and a local .sty', () => {
+    assert.strictEqual(engine(tree({ 'main.tex': '\\usepackage [x] {agenticlearning-xelatex}\n' }), 'main.tex'), 'xelatex');
+    assert.strictEqual(engine(tree({ 'main.tex': '\\input{sec/preamble}\n', 'sec/preamble.tex': '\\usepackage{agenticlearning-xelatex}\n' }), 'main.tex'), 'xelatex');
+    assert.strictEqual(engine(tree({ 'main.tex': '\\usepackage{mystyle}\n', 'mystyle.sty': '\\RequirePackage{fontspec}\n' }), 'main.tex'), 'xelatex');
+});
+
+test('a root 00README.json applies to a nested main file', () => {
+    assert.strictEqual(engine(tree({ 'p/main.tex': '\\documentclass{article}\n', '00README.json': JSON.stringify({ process: { compiler: 'lualatex' } }) }), 'p/main.tex'), 'lualatex');
+});
+
+test('an escaped backslash before % still starts a comment', () => {
+    assert.strictEqual(engine(tree({ 'm.tex': 'a\\\\% \\usepackage{fontspec}\n' }), 'm.tex'), 'pdflatex');
+    assert.strictEqual(engine(tree({ 'm.tex': '50\\% done \\usepackage{fontspec}\n' }), 'm.tex'), 'xelatex');
+});
+
+test('LuaTeX-only packages win', () => {
+    assert.strictEqual(engine(tree({ 'm.tex': '\\usepackage{fontspec,luatexja}\n' }), 'm.tex'), 'lualatex');
+});
