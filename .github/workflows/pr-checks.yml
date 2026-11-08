@@ -22,7 +22,7 @@ jobs:
         run: npm test
 
       - name: shellcheck
-        run: shellcheck convert.sh
+        run: shellcheck convert.sh pdf.sh
 
       - name: actionlint
         run: |
@@ -59,3 +59,15 @@ jobs:
             console.log("tikz fixture ok");
           ' "$RUNNER_TEMP/tikz/paper-content.json"
 
+      # PDF: both engines compile on the pinned TeX Live, and the same
+      # source compiles to the same bytes.
+      - name: Compile the fixtures to PDF
+        run: |
+          sudo apt-get install -y -qq qpdf poppler-utils >/dev/null
+          ./pdf.sh test/fixtures/tikz "$RUNNER_TEMP/a.pdf" | tee "$RUNNER_TEMP/pdf.log"
+          grep -q 'with pdflatex' "$RUNNER_TEMP/pdf.log"
+          ./pdf.sh test/fixtures/tikz "$RUNNER_TEMP/b.pdf"
+          cmp "$RUNNER_TEMP/a.pdf" "$RUNNER_TEMP/b.pdf"
+          ./pdf.sh test/fixtures/xelatex "$RUNNER_TEMP/x.pdf" | tee "$RUNNER_TEMP/pdf.log"
+          grep -q 'with xelatex' "$RUNNER_TEMP/pdf.log"
+          pdftotext "$RUNNER_TEMP/x.pdf" - | grep -q 'LeCun'
