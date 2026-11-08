@@ -10,13 +10,19 @@
 //       where [start, end) is the byte span of the whole environment in
 //       that file. Prints the number of tikzpictures.
 //
-//   node tikz.js replace <work-dir> <plan.tsv>
+//   node tikz.js replace <work-dir> <plan.tsv> [<main.tex>]
 //       Replace each span with \includegraphics{tikz-N.pdf} (N = plan
-//       order). All spans are validated before anything is written.
+//       order). All spans are validated before anything is written. With
+//       the main file, a \resizebox or \scalebox around the \input of a
+//       picture-only file becomes a sized \includegraphics.
+//
+//   node tikz.js wrap <scratch-dir> <plan.tsv>
+//       In a scratch copy of the tree, wrap each planned picture in
+//       \begin{lxlabpic}...\end{lxlabpic}.
 //
 //   node tikz.js preview <main.tex> <out.tex>
 //       Copy the main file with the preview package loaded and
-//       \PreviewEnvironment{tikzpicture} enabled before \begin{document}.
+//       \PreviewEnvironment{lxlabpic} enabled before \begin{document}.
 
 const fs = require('fs');
 const path = require('path');
@@ -136,14 +142,20 @@ function scan(root, mainRel) {
 }
 
 function cmdScan(root, mainRel, planPath) {
-    const found = scan(path.resolve(root), mainRel);
-    // The same source span can only be spliced once; a file \input twice
-    // would otherwise produce two plans for one environment.
+    // A file \input from two places (typically both branches of an
+    // \if...\else...\fi, of which TeX runs one) holds one picture: plan
+    // it once, where it first appears. If TeX really draws it twice, the
+    // preview's page count no longer matches and convert.sh skips TikZ.
+    const all = scan(path.resolve(root), mainRel).map(f => ({ ...f, key: `${f.file}\t${f.start}\t${f.end}` }));
     const seen = new Set();
-    for (const f of found) {
-        const key = `${f.file}\t${f.start}\t${f.end}`;
-        if (seen.has(key)) throw new Error('the same tikzpicture is included more than once');
-        seen.add(key);
+    const found = all.filter(f => !seen.has(f.key) && seen.add(f.key));
+    // If repeated pictures appear in a different order later (branches
+    // that list the same files in another order), the page order of the
+    // preview is unknown: refuse rather than risk swapping figures.
+    const lastOrder = [...new Map(all.map((f, i) => [f.key, i])).entries()]
+        .sort((a, b) => a[1] - b[1]).map(([k]) => k);
+    if (lastOrder.join('\n') !== found.map(f => f.key).join('\n')) {
+        throw new Error('repeated tikzpictures appear in different orders');
     }
     fs.mkdirSync(path.dirname(planPath), { recursive: true });
     fs.writeFileSync(
@@ -158,7 +170,15 @@ function cmdScan(root, mainRel, planPath) {
 // \scalebox{s}{...} becomes \includegraphics[width=W] / [scale=s] in place
 // of the whole wrapper: LaTeXML sizes a plain graphic correctly, while a
 // box transform around one renders at the wrong size.
-const WRAPPER = /\\(resizebox)\s*\{([^{}]*)\}\s*\{([^{}]*)\}\s*\{(?:\s|%[^\n]*\n)*$|\\(scalebox)\s*\{([^{}]*)\}\s*(?:\[[^\]]*\]\s*)?\{(?:\s|%[^\n]*\n)*$/;
+const WRAPPER = /\\(resizebox)\s*\{([^{}]*)\}\s*\{([^{}]*)\}\s*\{(?:\s|%[^\n]*\n)*$|\\(scalebox)\s*\{([^{}]*)\}\s*\{(?:\s|%[^\n]*\n)*$/;
+
+// \resizebox{W}{H} as \includegraphics options: both sizes when both are
+// given (resizebox may distort too), else the one that is.
+function sizeOpts(w, h) {
+    [w, h] = [w.trim(), h.trim()];
+    if (w !== '!' && h !== '!') return `[width=${w},height=${h}]`;
+    return w !== '!' ? `[width=${w}]` : h !== '!' ? `[height=${h}]` : '';
+}
 
 function absorbWrapper(text, start, end) {
     const m = WRAPPER.exec(text.slice(Math.max(0, start - 200), start));
@@ -166,15 +186,14 @@ function absorbWrapper(text, start, end) {
     if (!m || !close) return { start, end, opts: '' };
     let opts;
     if (m[1]) {
-        const [w, h] = [m[2].trim(), m[3].trim()];
-        opts = w !== '!' ? `[width=${w}]` : h !== '!' ? `[height=${h}]` : '';
+        opts = sizeOpts(m[2], m[3]);
     } else {
         opts = `[scale=${m[5].trim()}]`;
     }
     return { start: start - m[0].length, end: end + close[0].length, opts };
 }
 
-function cmdReplace(root, planPath) {
+function cmdReplace(root, planPath, mainRel) {
     const lines = fs.readFileSync(planPath, 'utf8').split('\n').filter(Boolean);
     const files = new Map();
     lines.forEach((line, i) => {
@@ -213,6 +232,67 @@ function cmdReplace(root, planPath) {
         }
         fs.writeFileSync(abs, text);
     }
+
+    if (mainRel) absorbInputWrappers(root, path.dirname(path.resolve(root, mainRel)), files);
+}
+
+// A picture often lives in its own file, scaled where it is included:
+// \resizebox{W}{H}{\input{figures/x}}. When a replaced file now holds only
+// \includegraphics{tikz-N.pdf}, rewrite such an include site into a sized
+// \includegraphics, as absorbWrapper does for a wrapper in the same file.
+function absorbInputWrappers(root, mainDir, files) {
+    const only = new Map(); // include name -> tikz-N.pdf
+    for (const [abs] of files) {
+        const body = fs.readFileSync(abs, 'utf8').replace(/%[^\n]*/g, '').trim();
+        const m = /^\\includegraphics\{(tikz-\d+\.pdf)\}$/.exec(body);
+        if (!m) continue;
+        const rel = path.relative(mainDir, abs).split(path.sep).join('/');
+        only.set(rel, m[1]);
+        only.set(rel.replace(/\.tex$/, ''), m[1]);
+    }
+    if (!only.size) return;
+    const INPUT = String.raw`\\(?:input|include)\s*\{\s*([^}]+?)\s*\}`;
+    const RESIZE = new RegExp(String.raw`\\resizebox\s*\{([^{}]*)\}\s*\{([^{}]*)\}\s*\{\s*` + INPUT + String.raw`\s*\}`, 'g');
+    const SCALE = new RegExp(String.raw`\\scalebox\s*\{([^{}]*)\}\s*\{\s*` + INPUT + String.raw`\s*\}`, 'g');
+    const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap(e =>
+        e.isDirectory() ? walk(path.join(dir, e.name)) : e.name.endsWith('.tex') ? [path.join(dir, e.name)] : []);
+    for (const file of walk(path.resolve(root))) {
+        const text = fs.readFileSync(file, 'utf8');
+        const out = text
+            .replace(RESIZE, (m, w, h, name) => {
+                const pdf = only.get(path.posix.normalize(name));
+                if (!pdf) return m;
+                return `\\includegraphics${sizeOpts(w, h)}{${pdf}}`;
+            })
+            .replace(SCALE, (m, k, name) => {
+                const pdf = only.get(path.posix.normalize(name));
+                return pdf ? `\\includegraphics[scale=${k.trim()}]{${pdf}}` : m;
+            });
+        if (out !== text) fs.writeFileSync(file, out);
+    }
+}
+
+// In a scratch copy of the tree, wrap each planned picture in
+// \begin{lxlabpic}...\end{lxlabpic}. The preview compile captures only
+// that environment, so an inline \tikz{...} (a tikzpicture too) does not
+// become a page of its own.
+function cmdWrap(root, planPath) {
+    const files = new Map();
+    for (const line of fs.readFileSync(planPath, 'utf8').split('\n').filter(Boolean)) {
+        const [file, start, end] = line.split('\t');
+        const abs = path.resolve(root, file);
+        if (!inside(path.resolve(root), abs)) throw new Error(`plan names a file outside ${root}`);
+        if (!files.has(abs)) files.set(abs, []);
+        files.get(abs).push({ start: Number(start), end: Number(end) });
+    }
+    for (const [abs, spans] of files) {
+        let text = fs.readFileSync(abs, 'utf8');
+        for (const { start, end } of spans.sort((a, b) => b.start - a.start)) {
+            text = text.slice(0, start) + '\\begin{lxlabpic}' + text.slice(start, end) +
+                '\\end{lxlabpic}' + text.slice(end);
+        }
+        fs.writeFileSync(abs, text);
+    }
 }
 
 function cmdPreview(mainPath, outPath) {
@@ -239,10 +319,13 @@ function cmdPreview(mainPath, outPath) {
     if (!previewLoaded) {
         insert += '\\usepackage[active,tightpage]{preview}\n';
     }
-    insert += '\\PreviewEnvironment{tikzpicture}\n';
+    insert += '\\newenvironment{lxlabpic}{}{}\\PreviewEnvironment{lxlabpic}\n';
     if (pos > 0 && text[pos - 1] !== '\n') insert = '\n' + insert;
 
-    fs.writeFileSync(outPath, text.slice(0, pos) + insert + text.slice(pos));
+    // The image has no XeLaTeX, so a XeLaTeX paper's pictures compile with
+    // LuaLaTeX, which runs fontspec too; let it past iftex's \RequireXeTeX.
+    const hook = '\\AddToHook{package/iftex/after}{\\let\\RequireXeTeX\\relax}\n';
+    fs.writeFileSync(outPath, hook + text.slice(0, pos) + insert + text.slice(pos));
 }
 
 function main(argv) {
@@ -250,12 +333,14 @@ function main(argv) {
     try {
         if (mode === 'scan' && args.length === 3) {
             cmdScan(args[0], args[1], args[2]);
-        } else if (mode === 'replace' && args.length === 2) {
-            cmdReplace(args[0], args[1]);
+        } else if (mode === 'replace' && (args.length === 2 || args.length === 3)) {
+            cmdReplace(args[0], args[1], args[2]);
+        } else if (mode === 'wrap' && args.length === 2) {
+            cmdWrap(args[0], args[1]);
         } else if (mode === 'preview' && args.length === 2) {
             cmdPreview(args[0], args[1]);
         } else {
-            process.stderr.write('usage: tikz.js scan|replace|preview ...\n');
+            process.stderr.write('usage: tikz.js scan|replace|wrap|preview ...\n');
             process.exit(64);
         }
     } catch (err) {
