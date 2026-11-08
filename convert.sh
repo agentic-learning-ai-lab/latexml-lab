@@ -45,19 +45,8 @@ if [ -n "$(find "$WORK" -name '*.ltxml' -print -quit)" ]; then
     exit 1
 fi
 
-# Main file: main.tex when it declares a document, else the first .tex
-# that does (latex_lib.findMainTexFile uses the same rule).
-MAIN=""
-if [ -f "$WORK/main.tex" ] && grep -a -q '\\documentclass' "$WORK/main.tex"; then
-    MAIN="main.tex"
-else
-    while IFS= read -r f; do
-        if grep -a -q '\\documentclass' "$f"; then
-            MAIN="${f#"$WORK"/}"
-            break
-        fi
-    done < <(find "$WORK" -name '*.tex' -type f | sort)
-fi
+# Main file: see mainfile.js.
+MAIN=$(node "$REPO_DIR/mainfile.js" "$WORK" || true)
 if [ -z "$MAIN" ]; then
     echo "No .tex with \\documentclass found under $SOURCE_DIR" >&2
     exit 1
