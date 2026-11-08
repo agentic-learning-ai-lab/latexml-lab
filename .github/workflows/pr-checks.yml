@@ -81,7 +81,8 @@ jobs:
           # PNG figures keep their PNG predictor (qpdf --recompress-flate
           # strips it and doubles the PDF).
           ./pdf.sh test/fixtures/hires "$RUNNER_TEMP/png.pdf"
-          qpdf --qdf --object-streams=disable "$RUNNER_TEMP/png.pdf" - | grep -aq '/Predictor'
+          n=$(qpdf --json --json-key=qpdf "$RUNNER_TEMP/png.pdf" | jq '[.qpdf[1][] | select(.stream.dict["/Subtype"]? == "/Image") | .stream.dict["/DecodeParms"]["/Predictor"]? | select(. != null)] | length')
+          [ "$n" -ge 1 ] || { echo "PNG figure lost its predictor"; exit 1; }
           # Oversampled images are resampled, deterministically.
           LATEXML_LAB_GS_MIN_BYTES=0 ./pdf.sh test/fixtures/hires "$RUNNER_TEMP/h1.pdf" | tee "$RUNNER_TEMP/pdf.log"
           grep -q 'resampled to 600 ppi' "$RUNNER_TEMP/pdf.log"
