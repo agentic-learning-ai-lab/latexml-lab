@@ -34,6 +34,8 @@ test('cleanup cuts to the first section and applies the arXiv-path fixes', () =>
     assert.ok(content.includes('(b;'));
     // ",<span>, </span>" table artifact collapsed.
     assert.ok(content.includes('table cell, year.'));
+    // cleveref's ~ as a no-break space, not a small tilde.
+    assert.ok(content.includes('Figure</span>\u00a0<span class="ltx_text ltx_ref_tag">1'));
 });
 
 test('extract writes paper-content.json and copies figures to assets/', () => {

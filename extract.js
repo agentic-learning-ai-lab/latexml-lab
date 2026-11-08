@@ -86,6 +86,10 @@ function cleanupContent(content) {
         return `<img src="${data[1]}"${rest}${alt}>`;
     });
 
+    // cleveref's "Figure~1": LaTeXML prints the ~ between the name and
+    // the number as a small tilde (U+02DC). Make it the no-break space it is.
+    content = content.replace(/(ltx_ref_tag">[^<]*<\/span>)\u02dc/g, '$1\u00a0');
+
     // Fix double commas in citations.
     content = content.replace(/,,\s*/g, ', ');
 
