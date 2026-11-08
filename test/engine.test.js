@@ -41,3 +41,22 @@ test('the lab template never compiles with pdflatex', () => {
     assert.strictEqual(engine(tree({ 'main.tex': '\\usepackage{agenticlearning-lualatex}\n' }), 'main.tex'), 'lualatex');
     assert.throws(() => engine(tree({ 'main.tex': '\\usepackage{agenticlearning-pdflatex}\n' }), 'main.tex'), /XeLaTeX/);
 });
+
+test('finds the template through spacing, \input and a local .sty', () => {
+    assert.strictEqual(engine(tree({ 'main.tex': '\\usepackage [x] {agenticlearning-xelatex}\n' }), 'main.tex'), 'xelatex');
+    assert.strictEqual(engine(tree({ 'main.tex': '\\input{sec/preamble}\n', 'sec/preamble.tex': '\\usepackage{agenticlearning-xelatex}\n' }), 'main.tex'), 'xelatex');
+    assert.strictEqual(engine(tree({ 'main.tex': '\\usepackage{mystyle}\n', 'mystyle.sty': '\\RequirePackage{fontspec}\n' }), 'main.tex'), 'xelatex');
+});
+
+test('a root 00README.json applies to a nested main file', () => {
+    assert.strictEqual(engine(tree({ 'p/main.tex': '\\documentclass{article}\n', '00README.json': JSON.stringify({ process: { compiler: 'lualatex' } }) }), 'p/main.tex'), 'lualatex');
+});
+
+test('an escaped backslash before % still starts a comment', () => {
+    assert.strictEqual(engine(tree({ 'm.tex': 'a\\\\% \\usepackage{fontspec}\n' }), 'm.tex'), 'pdflatex');
+    assert.strictEqual(engine(tree({ 'm.tex': '50\\% done \\usepackage{fontspec}\n' }), 'm.tex'), 'xelatex');
+});
+
+test('LuaTeX-only packages win', () => {
+    assert.strictEqual(engine(tree({ 'm.tex': '\\usepackage{fontspec,luatexja}\n' }), 'm.tex'), 'lualatex');
+});

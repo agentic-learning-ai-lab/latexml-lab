@@ -6,9 +6,11 @@
 #   ./pdf.sh <source-dir> <out.pdf>
 #
 # The engine comes from engine.js and the main file from mainfile.js.
-# The same source gives the same bytes: SOURCE_DATE_EPOCH is the newest
-# file time in the source (the time it was packed), and qpdf finalizes
-# with a content-derived ID. Requires Docker and qpdf.
+# The same tarball gives the same bytes on the same runner: SOURCE_DATE_EPOCH
+# is the newest file time in the source (the time it was packed), and qpdf
+# finalizes with a content-derived ID. Not covered: documents that use
+# TeX's random-number primitives, and a different qpdf version. Requires
+# Docker and qpdf.
 
 set -euo pipefail
 
@@ -62,21 +64,42 @@ esac
 DIR=$(dirname "$MAIN")
 BASE=$(basename "$MAIN" .tex)
 
-# No network and no shell escape: the source is untrusted. TEXMFVAR is
-# writable scratch for font caches under a non-root user.
-if ! docker run --rm --network none \
-        --user "$(id -u):$(id -g)" \
-        -e SOURCE_DATE_EPOCH="$EPOCH" -e FORCE_SOURCE_DATE=1 \
-        -e TEXMFVAR=/tmp/texmf-var -e HOME=/tmp \
-        -v "$WORK:/work" -w "/work/$DIR" \
-        "$IMAGE" \
-        latexmk "$FLAG" -interaction=nonstopmode -halt-on-error -file-line-error "$BASE.tex" \
-        > "$WORK/latexmk.out" 2>&1; then
+refuse_links() {
+    if [ -n "$(find "$WORK" ! -type f ! -type d -print -quit)" ]; then
+        echo "$1 contains symlinks or special files; refusing to continue" >&2
+        exit 1
+    fi
+}
+
+# Build from scratch: a PDF or latexmk state shipped in the source must
+# not pass for a fresh compile. A shipped .bbl stays (arXiv sources often
+# have no .bib).
+for ext in pdf xdv dvi aux log fls fdb_latexmk synctex.gz; do
+    rm -f "$WORK/$DIR/$BASE.$ext"
+done
+
+# The source is untrusted: no network, no rc files (a latexmkrc is Perl),
+# no shell escape. TEXMFVAR is writable scratch for font caches under a
+# non-root user. Host-side logs live outside the mounted tree.
+LOGDIR=$(mktemp -d "${TMPDIR:-/tmp}/latexml-lab-log.XXXXXX")
+trap 'rm -rf "$WORK" "$LOGDIR"' EXIT
+STATUS=0
+docker run --rm --network none \
+    --user "$(id -u):$(id -g)" \
+    -e SOURCE_DATE_EPOCH="$EPOCH" -e FORCE_SOURCE_DATE=1 \
+    -e TEXMFVAR=/tmp/texmf-var -e HOME=/tmp \
+    -v "$WORK:/work" -w "/work/$DIR" \
+    "$IMAGE" \
+    latexmk -norc "$FLAG" -no-shell-escape -interaction=nonstopmode -halt-on-error -file-line-error "./$BASE.tex" \
+    > "$LOGDIR/latexmk.out" 2>&1 || STATUS=$?
+# The compile may have created links; check before reading anything back.
+refuse_links "The compiled tree"
+if [ "$STATUS" -ne 0 ] || [ ! -f "$WORK/$DIR/$BASE.pdf" ]; then
     echo "LaTeX compile failed ($ENGINE). End of the log:" >&2
     if [ -f "$WORK/$DIR/$BASE.log" ]; then
         tail -n 40 "$WORK/$DIR/$BASE.log" >&2
     else
-        tail -n 40 "$WORK/latexmk.out" >&2
+        tail -n 40 "$LOGDIR/latexmk.out" >&2
     fi
     exit 1
 fi

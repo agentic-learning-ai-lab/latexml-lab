@@ -71,3 +71,16 @@ jobs:
           ./pdf.sh test/fixtures/xelatex "$RUNNER_TEMP/x.pdf" | tee "$RUNNER_TEMP/pdf.log"
           grep -q 'with xelatex' "$RUNNER_TEMP/pdf.log"
           pdftotext "$RUNNER_TEMP/x.pdf" - | grep -q 'LeCun'
+          ./pdf.sh test/fixtures/xelatex "$RUNNER_TEMP/x2.pdf"
+          cmp "$RUNNER_TEMP/x.pdf" "$RUNNER_TEMP/x2.pdf"
+          ./pdf.sh test/fixtures/lualatex "$RUNNER_TEMP/l.pdf" | tee "$RUNNER_TEMP/pdf.log"
+          grep -q 'with lualatex' "$RUNNER_TEMP/pdf.log"
+          pdftotext "$RUNNER_TEMP/l.pdf" - | grep -q '42'
+          ./pdf.sh test/fixtures/lualatex "$RUNNER_TEMP/l2.pdf"
+          cmp "$RUNNER_TEMP/l.pdf" "$RUNNER_TEMP/l2.pdf"
+          # A latexmkrc in the source is ignored, and a shipped PDF is rebuilt.
+          cp -r test/fixtures/xelatex "$RUNNER_TEMP/rc"
+          echo 'die "latexmkrc ran";' > "$RUNNER_TEMP/rc/latexmkrc"
+          echo 'not a pdf' > "$RUNNER_TEMP/rc/main.pdf"
+          ./pdf.sh "$RUNNER_TEMP/rc" "$RUNNER_TEMP/rc.pdf"
+          pdftotext "$RUNNER_TEMP/rc.pdf" - | grep -q 'LeCun'
