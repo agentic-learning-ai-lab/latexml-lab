@@ -108,11 +108,11 @@ fi
 PDF="$WORK/$DIR/$BASE.pdf"
 
 # A large PDF is usually oversampled figures (a 512 px image printed a
-# few millimetres wide). Ghostscript resamples images above 450 ppi to
-# 300 ppi and leaves text, fonts and links alone; its output is kept only
+# few millimetres wide). Ghostscript resamples images above 900 ppi to
+# 600 ppi and leaves text, fonts and links alone; its output is kept only
 # when smaller. Dates, XMP and the ID are omitted so the bytes stay
 # deterministic (qpdf adds a content-derived ID below).
-GS_MIN_BYTES="${LATEXML_LAB_GS_MIN_BYTES:-8000000}"
+GS_MIN_BYTES="${LATEXML_LAB_GS_MIN_BYTES:-15000000}"
 if [ "$(wc -c < "$PDF" | tr -d ' ')" -gt "$GS_MIN_BYTES" ]; then
     docker run --rm --network none \
         --user "$(id -u):$(id -g)" \
@@ -122,16 +122,16 @@ if [ "$(wc -c < "$PDF" | tr -d ' ')" -gt "$GS_MIN_BYTES" ]; then
             -dOmitInfoDate -dOmitID -dOmitXMP \
             -dDetectDuplicateImages=true -dPassThroughJPEGImages=true \
             -dDownsampleColorImages=true -dColorImageDownsampleType=/Bicubic \
-            -dColorImageResolution=300 -dColorImageDownsampleThreshold=1.5 \
+            -dColorImageResolution=600 -dColorImageDownsampleThreshold=1.5 \
             -dDownsampleGrayImages=true -dGrayImageDownsampleType=/Bicubic \
-            -dGrayImageResolution=300 -dGrayImageDownsampleThreshold=1.5 \
-            -dDownsampleMonoImages=true -dMonoImageResolution=600 -dMonoImageDownsampleThreshold=1.5 \
+            -dGrayImageResolution=600 -dGrayImageDownsampleThreshold=1.5 \
+            -dDownsampleMonoImages=true -dMonoImageResolution=1200 -dMonoImageDownsampleThreshold=1.5 \
             -sOutputFile="./$BASE.small.pdf" "./$BASE.pdf"
     refuse_links "The compressed tree"
     BEFORE=$(wc -c < "$PDF" | tr -d ' ')
     AFTER=$(wc -c < "$WORK/$DIR/$BASE.small.pdf" | tr -d ' ')
     if [ "$AFTER" -lt "$BEFORE" ]; then
-        echo "pdf: images resampled to 300 ppi, $BEFORE -> $AFTER bytes"
+        echo "pdf: images resampled to 600 ppi, $BEFORE -> $AFTER bytes"
         PDF="$WORK/$DIR/$BASE.small.pdf"
     fi
 fi

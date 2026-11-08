@@ -27,8 +27,8 @@ which is about 2.5 GB.
 
 `pdf.sh` compiles the same source with `latexmk` on TeX Live 2025
 (`texlive/texlive:TL2025-historic`, pinned by digest), then finalizes it
-with `qpdf`. A PDF over 8 MB also goes through Ghostscript, which resamples
-images above 450 ppi to 300 ppi and is kept only when smaller. The source is untrusted, so the compile has no network, no
+with `qpdf`. A PDF over 15 MB also goes through Ghostscript, which resamples
+images above 900 ppi to 600 ppi and is kept only when smaller. The source is untrusted, so the compile has no network, no
 unrestricted shell escape (only TeX's built-in allowlist, which converts
 `.eps` figures) and no `latexmkrc`, and it always starts from scratch. The
 same source compiles to the same bytes, except in a document that uses
