@@ -192,16 +192,23 @@ else
         TIKZ_REASON="no tikzpicture in document order"
     fi
 
-    # The preview copy keeps the main file's folder so \input paths resolve.
-    PREVIEW_TEX="$MAIN_DIR_ABS/$TIKZ_PREVIEW.tex"
-    PREVIEW_PDF="$MAIN_DIR_ABS/$TIKZ_PREVIEW.pdf"
+    # The preview compiles in a scratch copy of the tree (same layout, so
+    # \input paths resolve) where only the planned pictures are wrapped.
+    TIKZ_PV="lxlab_tikz_preview"
+    PV_ABS="$WORK/$TIKZ_PV"
+    PREVIEW_TEX="$PV_ABS/$MAIN_DIR/$TIKZ_PREVIEW.tex"
+    PREVIEW_PDF="$PV_ABS/$MAIN_DIR/$TIKZ_PREVIEW.pdf"
     if [ -z "$TIKZ_REASON" ]; then
+        mkdir -p "$PV_ABS"
+        (cd "$WORK" && tar cf - --exclude "./$TIKZ_PV" --exclude ./out --exclude ./.tikz .) \
+            | (cd "$PV_ABS" && tar xf -)
         set +e
-        node "$REPO_DIR/tikz.js" preview "$MAIN_PATH" "$PREVIEW_TEX"
+        node "$REPO_DIR/tikz.js" wrap "$PV_ABS" "$TIKZ_PLAN" \
+            && node "$REPO_DIR/tikz.js" preview "$PV_ABS/$MAIN" "$PREVIEW_TEX"
         TIKZ_STATUS=$?
         set -e
         if [ "$TIKZ_STATUS" -ne 0 ]; then
-            TIKZ_REASON="no \\begin{document} in main file"
+            TIKZ_REASON="could not prepare the preview copy"
         fi
     fi
 
@@ -224,7 +231,7 @@ else
         docker run --rm --network none \
             --user "$(id -u):$(id -g)" \
             -e HOME=/tmp \
-            -v "$WORK:/work" -w "/work/$MAIN_DIR" \
+            -v "$WORK:/work" -w "/work/$TIKZ_PV/$MAIN_DIR" \
             --entrypoint "$TIKZ_ENGINE" \
             "$IMAGE" \
             -interaction=nonstopmode "$TIKZ_PREVIEW.tex" \
@@ -245,8 +252,8 @@ else
             -v "$WORK:/work" -w "/work/$MAIN_DIR" \
             --entrypoint gs \
             "$IMAGE" \
-            -q -dNODISPLAY --permit-file-read=/work/ \
-            -c "($TIKZ_PREVIEW.pdf) (r) file runpdfbegin pdfpagecount = quit" \
+            -q -dNODISPLAY "--permit-file-read=/work/*" \
+            -c "(/work/$TIKZ_PV/$MAIN_DIR/$TIKZ_PREVIEW.pdf) (r) file runpdfbegin pdfpagecount = quit" \
             2>/dev/null)
         TIKZ_STATUS=$?
         set -e
@@ -278,7 +285,7 @@ else
             -q -dNOPAUSE -dBATCH -sDEVICE=pdfwrite \
             -dFirstPage=1 -dLastPage="$TIKZ_K" \
             -sOutputFile="/work/$MAIN_DIR/tikz-%d.pdf" \
-            "/work/$MAIN_DIR/$TIKZ_PREVIEW.pdf" \
+            "/work/$TIKZ_PV/$MAIN_DIR/$TIKZ_PREVIEW.pdf" \
             > "$TIKZ_DIR/split.log" 2>&1
         TIKZ_STATUS=$?
         set -e
@@ -296,7 +303,7 @@ else
 
     if [ -z "$TIKZ_REASON" ]; then
         set +e
-        node "$REPO_DIR/tikz.js" replace "$WORK" "$TIKZ_PLAN"
+        node "$REPO_DIR/tikz.js" replace "$WORK" "$TIKZ_PLAN" "$MAIN"
         TIKZ_STATUS=$?
         set -e
         if [ "$TIKZ_STATUS" -ne 0 ]; then
@@ -304,10 +311,7 @@ else
         fi
     fi
 
-    rm -f "$PREVIEW_TEX" "$PREVIEW_PDF" \
-        "$MAIN_DIR_ABS/$TIKZ_PREVIEW.aux" "$MAIN_DIR_ABS/$TIKZ_PREVIEW.log" \
-        "$MAIN_DIR_ABS/$TIKZ_PREVIEW.out" "$MAIN_DIR_ABS/$TIKZ_PREVIEW.toc" \
-        2>/dev/null || true
+    rm -rf "${PV_ABS:-$WORK/lxlab_tikz_preview}"
 
     if [ -n "$TIKZ_REASON" ]; then
         echo "tikz: skipped ($TIKZ_REASON)"

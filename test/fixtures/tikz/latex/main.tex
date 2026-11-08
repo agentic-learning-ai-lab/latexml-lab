@@ -1,0 +1,15 @@
+\documentclass{article}
+\usepackage{tikz}
+\usepackage{graphicx}
+\newif\ifwide
+\widetrue
+\newcommand{\dotmark}{\tikz{\fill (0,0) circle (0.5ex);}}
+\begin{document}
+\section{Pictures}
+A symbol \dotmark{} in the text.
+\begin{figure}[t]
+\centering
+\ifwide\resizebox{\textwidth}{!}{\input{figures/pic}}\else\input{figures/pic}\fi
+\caption{A picture input inside resizebox.}
+\end{figure}
+\end{document}

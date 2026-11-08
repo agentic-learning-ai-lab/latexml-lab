@@ -42,3 +42,17 @@ jobs:
             if (!h.includes("im_start")) fail("lstnewenvironment lost its first line");
             console.log("fixture ok");
           ' "$RUNNER_TEMP/out/paper-content.json"
+
+      # TikZ: pictures are compiled with real TeX in a wrapped source, a
+      # resizebox around an \input is kept, and inline \tikz stays text.
+      - name: Convert the TikZ fixture
+        run: |
+          ./convert.sh test/fixtures/tikz "$RUNNER_TEMP/tikz" | tee "$RUNNER_TEMP/tikz.log"
+          grep -q '^tikz: pre-rendered 1$' "$RUNNER_TEMP/tikz.log"
+          if grep '^Error:' "$RUNNER_TEMP/tikz/latexml.log"; then exit 1; fi
+          node -e '
+            const h = require(process.argv[1]).html;
+            if (!/<img[^>]*tikz-1/.test(h) && !/<img[^>]*x1\.png/.test(h)) { console.error("no pre-rendered picture"); process.exit(1); }
+            console.log("tikz fixture ok");
+          ' "$RUNNER_TEMP/tikz/paper-content.json"
+
