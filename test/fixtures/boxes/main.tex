@@ -1,0 +1,28 @@
+\documentclass{article}
+\usepackage{xcolor}
+\usepackage[most]{tcolorbox}
+\usepackage{listings}
+\lstdefinestyle{llmblock}{basicstyle=\ttfamily\small,columns=fullflexible,breaklines=true,keepspaces=true}
+\newtcolorbox{InteractionBox}[1]{enhanced,breakable,colback=blue!2,colframe=blue!55!black,
+  colbacktitle=blue!10,coltitle=blue!60!black,boxrule=0.6pt,arc=2pt,title={#1},fonttitle=\bfseries}
+\newcommand{\FieldHeader}[1]{\par\smallskip\noindent\textbf{#1}\par\smallskip}
+\lstnewenvironment{LLMBlock}[1][]{\lstset{style=llmblock,#1}}{}
+\begin{document}
+\section{Examples}
+\begin{InteractionBox}{Thinking Mode}
+\FieldHeader{Problem}
+\begin{LLMBlock}
+<|im_start|>user
+Jill gets paid $20 per hour. What is her ``annual salary''?
+\end{LLMBlock}
+\end{InteractionBox}
+
+\begin{tcolorbox}[title=Plain box]
+Some text with $x^2$ math.
+\end{tcolorbox}
+
+\begin{lstlisting}
+first line kept
+second line
+\end{lstlisting}
+\end{document}

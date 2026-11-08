@@ -1,0 +1,134 @@
+# -*- mode: Perl -*-
+# /=====================================================================\ #
+# |  tcolorbox (minimal, flow-content binding)                          | #
+# | Overrides LaTeXML's stock binding, which turns every tcolorbox into | #
+# | an SVG picture with a fixed-height foreignObject.                   | #
+# |                                                                     | #
+# | Only `title' is honoured; colours, frames, breakable, ... are       | #
+# | ignored. The box becomes                                           | #
+# |   <ltx:block class="ltx_tcolorbox">                                 | #
+# |     <ltx:p class="ltx_tcolorbox_title">Title</ltx:p>                | #
+# |     ... normal flowing content ...                                  | #
+# |   </ltx:block>                                                      | #
+# \=====================================================================#
+package LaTeXML::Package::Pool;
+use strict;
+use warnings;
+use LaTeXML::Package;
+
+#======================================================================
+# KeyVals helpers.  Unknown keys are ignored (skipMissing), so colour
+# and layout keys need no declarations.
+
+sub tcb_keyvals {
+  my ($gullet, $until) = @_;
+  my $kv = LaTeXML::Core::KeyVals->new('tcolorbox', 'tcolorbox', skipMissing => 1);
+  $kv->readFrom($gullet, $until);
+  return $kv; }
+
+# [options] after an environment
+DefParameterType('TCBOptions', sub {
+    my ($gullet) = @_;
+    $gullet->skipSpaces;
+    return unless $gullet->ifNext(T_OTHER('['));
+    return tcb_keyvals($gullet, T_OTHER(']')); },
+  optional => 1, undigested => 1);
+
+# {options} after \tcbset (parsed and discarded)
+DefParameterType('TCBKeyVals', sub {
+    my ($gullet) = @_;
+    return tcb_keyvals($gullet, T_END); },
+  undigested => 1);
+
+DefMacro('\tcbset TCBKeyVals', '');
+
+# Common separators inside a box: keep the content, lose the rule.
+DefMacro('\tcblower TCBOptions', '\par');
+DefMacro('\tcbline', '\par');
+
+#======================================================================
+# The title paragraph, emitted from afterDigestBegin.
+
+DefConstructor('\lx@tcolorbox@title {}',
+  "<ltx:p class='ltx_tcolorbox_title'>#1</ltx:p>",
+  mode => 'internal_vertical');
+
+sub tcb_emit_title {
+  my ($stomach, $options) = @_;
+  my $title = $options && $options->getValue('title');
+  return Digest(Invocation(T_CS('\lx@tcolorbox@title'), $title))
+    if $title && !IsEmpty($title);
+  return; }
+
+sub tcb_options_from_tokens {
+  my ($stomach, $tokens) = @_;
+  return unless $tokens && !IsEmpty($tokens);
+  my $gullet = $stomach->getGullet;
+  my $kv;
+  $gullet->readingFromMouth(Tokens(T_BEGIN, $tokens->unlist, T_END), sub {
+      my ($g) = @_;
+      $kv = tcb_keyvals($g, T_END); });
+  return $kv; }
+
+#======================================================================
+# The tcolorbox environment itself.
+
+DefEnvironment('{tcolorbox} TCBOptions',
+  "<ltx:block class='ltx_tcolorbox'>#body</ltx:block>",
+  afterDigestBegin => sub {
+    my ($stomach, $whatsit) = @_;
+    my ($options) = $whatsit->getArgs;
+    return tcb_emit_title($stomach, $options); });
+
+#======================================================================
+# \newtcolorbox[init]{name}[n][default]{options}
+# (also the starred form; the star only suppresses automatic titles,
+#  which we don't generate anyway)
+
+sub tcb_params {
+  my ($n, $default) = @_;
+  $n = ToString($n) if ref $n;
+  $n = 0 unless $n;
+  my @params = ();
+  # A second optional argument ([default]) makes the first argument
+  # optional; without it all n arguments are required, as in tcolorbox.
+  if ($n > 0 && defined $default) {
+    push(@params, LaTeXML::Core::Parameter->new('Optional', '[Default:]',
+        extra => [$default, undef], optional => 1, undigested => 1));
+    $n--; }
+  push(@params, map { LaTeXML::Core::Parameter->new('Plain', '{}', undigested => 1) }
+      1 .. $n);
+  return @params ? LaTeXML::Core::Parameters->new(@params) : undef; }
+
+sub tcb_define_environment {
+  my ($name, $params, $template) = @_;
+  $template = $template->packParameters if $template;
+  DefEnvironmentI($name, $params,
+    "<ltx:block class='ltx_tcolorbox'>#body</ltx:block>",
+    afterDigestBegin => sub {
+      my ($stomach, $whatsit) = @_;
+      my @args = $whatsit->getArgs;
+      my $options = tcb_options_from_tokens($stomach,
+        $template ? $template->substituteParameters(@args) : undef);
+      return tcb_emit_title($stomach, $options); });
+  return; }
+
+sub tcb_define {
+  my ($stomach) = @_;
+  my $gullet = $stomach->getGullet;
+  $gullet->readToken if $gullet->ifNext(T_OTHER('*'));    # starred form
+  $gullet->readOptional;                                  # [init]
+  my $name = ToString($gullet->readArg);
+  my $n    = $gullet->readOptional;                       # [n]
+  if (defined $n && ToString($n) =~ /^\s*([0-9]+)/) {
+    $n = $1; }
+  else { $n = 0; }
+  my $default = ($n > 0 ? $gullet->readOptional : undef); # [default]
+  my $options = $gullet->readArg;                         # {options}
+  tcb_define_environment($name, tcb_params($n, $default), $options);
+  return; }
+
+DefPrimitive('\newtcolorbox', \&tcb_define);
+DefPrimitive('\renewtcolorbox', \&tcb_define);
+
+1;

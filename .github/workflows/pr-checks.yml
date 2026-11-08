@@ -1,0 +1,44 @@
+name: pr-checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Unit tests
+        run: npm test
+
+      - name: shellcheck
+        run: shellcheck convert.sh
+
+      - name: actionlint
+        run: |
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7
+          ./actionlint -color
+
+      # End to end on arXiv's image: the bindings in bindings/ must load
+      # and LaTeXML must report no errors.
+      - name: Convert the fixture
+        run: |
+          ./convert.sh test/fixtures/boxes "$RUNNER_TEMP/out"
+          if grep '^Error:' "$RUNNER_TEMP/out/latexml.log"; then exit 1; fi
+          node -e '
+            const h = require(process.argv[1]).html;
+            const fail = m => { console.error(m); process.exit(1); };
+            if ((h.match(/ltx_tcolorbox_title/g) || []).length !== 2) fail("expected 2 tcolorbox titles");
+            if (!h.includes("im_start")) fail("lstnewenvironment lost its first line");
+            console.log("fixture ok");
+          ' "$RUNNER_TEMP/out/paper-content.json"

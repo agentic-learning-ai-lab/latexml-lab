@@ -1,0 +1,52 @@
+# -*- mode: Perl -*-
+# fairmeta (Meta FAIR paper template)
+#
+# LaTeXML has no binding for this class, and reading fairmeta.cls itself
+# fails (it loads nicematrix). This loads the class's content packages,
+# skips its page styling, and maps its front-matter commands:
+# \author[marks]{Name}, \affiliation[mark]{...}, \contribution[mark]{...},
+# \metadata[Key]{Value}, \correspondence{...}, \abstract{...} (a command
+# here, not an environment) and \beginappendix.
+package LaTeXML::Package::Pool;
+use strict;
+use warnings;
+use LaTeXML::Package;
+
+LoadClass('article');
+RequirePackage('amsmath');
+RequirePackage('amssymb');
+RequirePackage('graphicx');
+RequirePackage('subcaption');
+RequirePackage('booktabs');
+RequirePackage('multirow');
+RequirePackage('bm');
+RequirePackage('xcolor');
+RequirePackage('tcolorbox');
+RequirePackage('hyperref');
+RequirePackage('natbib', options => ['round', 'authoryear']);
+RequirePackage('cleveref');
+
+RawTeX(<<'EOTEX');
+\definecolor{metablue}{HTML}{0064E0}
+\definecolor{metafg}{HTML}{1C2B33}
+\definecolor{metabg}{HTML}{F1F4F7}
+\newcommand\nm[1]{#1}
+\newcommand\email[1]{\href{mailto:#1}{\texttt{#1}}}
+\let\fairmeta@author\author
+\renewcommand\author[2][]{\fairmeta@author{#2\if\relax\detokenize{#1}\relax\else\textsuperscript{#1}\fi}}
+\def\fairmeta@notes{}
+\def\fairmeta@meta{}
+\newcommand\affiliation[2][]{\g@addto@macro\fairmeta@notes{\par\textsuperscript{#1}#2}}
+\newcommand\contribution[2][]{\g@addto@macro\fairmeta@notes{\par\textsuperscript{#1}#2}}
+\newcommand\metadata[2][]{\g@addto@macro\fairmeta@meta{\par\textbf{#1:} #2}}
+\newcommand\correspondence[1]{\metadata[Correspondence]{#1}}
+\def\fairmeta@abstract{}
+\renewcommand\abstract[1]{\def\fairmeta@abstract{#1}}
+\newcommand\beginappendix{\appendix}
+\let\fairmeta@maketitle\maketitle
+\renewcommand\maketitle{\fairmeta@maketitle
+  \begin{abstract}\fairmeta@abstract\end{abstract}
+  {\small\fairmeta@notes\fairmeta@meta\par}}
+EOTEX
+
+1;

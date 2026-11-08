@@ -1,0 +1,13 @@
+{
+  "name": "latexml-lab",
+  "version": "1.0.0",
+  "private": true,
+  "description": "LaTeX → arXiv-compatible full-paper HTML for agenticlearning.ai",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

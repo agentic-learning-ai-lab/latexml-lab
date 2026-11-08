@@ -1,0 +1,42 @@
+# -*- mode: Perl -*-
+# unicode-math (minimal binding)
+#
+# LaTeXML has no unicode-math binding, so a paper that loads it gets
+# \setmathfont undefined and loses \mathbb and the other symbols
+# unicode-math provides. Output is MathML, so the math fonts do not matter:
+# load the symbol packages and accept the font commands.
+package LaTeXML::Package::Pool;
+use strict;
+use warnings;
+use LaTeXML::Package;
+
+RequirePackage('fontspec');
+RequirePackage('amsmath');
+RequirePackage('amssymb');
+RequirePackage('bm');
+
+# \setmathfont[options]{font}[options] and \setoperatorfont: no-ops.
+for my $cmd (qw(setmathfont setoperatorfont)) {
+  DefMacroI(T_CS("\\$cmd"), '[]{}[]', ''); }
+# \setmathfontface\cmd{font}[options] defines \cmd as a math alphabet;
+# plain upright letters stand in for the font.
+DefMacro('\setmathfontface{}{}[]', sub {
+    my ($gullet, $cs, $font, $options) = @_;
+    my ($token) = $cs->unlist;
+    Let($token, T_CS('\mathrm')) if $token;
+    return; });
+DefMacro('\unimathsetup{}', '');
+
+# unicode-math's names for bold and alphabet styles.
+DefMacro('\symbf{}',   '\mathbf{#1}');
+DefMacro('\symit{}',   '\mathit{#1}');
+DefMacro('\symrm{}',   '\mathrm{#1}');
+DefMacro('\symsf{}',   '\mathsf{#1}');
+DefMacro('\symtt{}',   '\mathtt{#1}');
+DefMacro('\symbb{}',   '\mathbb{#1}');
+DefMacro('\symcal{}',  '\mathcal{#1}');
+DefMacro('\symscr{}',  '\mathscr{#1}');
+DefMacro('\symfrak{}', '\mathfrak{#1}');
+DefMacro('\symbfit{}', '\bm{#1}');
+
+1;
