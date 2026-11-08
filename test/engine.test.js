@@ -32,3 +32,12 @@ test('the magic comment overrides packages, and 00README.json overrides both', (
     fs.writeFileSync(path.join(root, 'p/00README.json'), JSON.stringify({ process: { compiler: 'pdflatex' } }));
     assert.strictEqual(engine(root, 'p/main.tex'), 'pdflatex');
 });
+
+test('the lab template never compiles with pdflatex', () => {
+    const readme = JSON.stringify({ process: { compiler: 'pdflatex' } });
+    assert.strictEqual(engine(tree({ 'main.tex': '\\usepackage{agenticlearning-xelatex}\n', '00README.json': readme }), 'main.tex'), 'xelatex');
+    assert.strictEqual(engine(tree({ 'main.tex': '%!TEX program = pdflatex\n\\usepackage{agenticlearning-xelatex}\n' }), 'main.tex'), 'xelatex');
+    assert.strictEqual(engine(tree({ 'main.tex': '%!TEX program = lualatex\n\\usepackage{agenticlearning-xelatex}\n' }), 'main.tex'), 'lualatex');
+    assert.strictEqual(engine(tree({ 'main.tex': '\\usepackage{agenticlearning-lualatex}\n' }), 'main.tex'), 'lualatex');
+    assert.throws(() => engine(tree({ 'main.tex': '\\usepackage{agenticlearning-pdflatex}\n' }), 'main.tex'), /XeLaTeX/);
+});
