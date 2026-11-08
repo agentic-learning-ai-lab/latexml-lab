@@ -1,0 +1,25 @@
+# -*- mode: Perl -*-
+# multibib (minimal binding)
+#
+# LaTeXML has no multibib binding, so it reads the raw style, which patches
+# natbib internals LaTeXML lacks (\c@NAT@ctr) and prints an error into the
+# page. Keep one bibliography: \newcites{x}{Title} makes \citex and \nocitex
+# the main \cite and \nocite, and \bibliographyx and \bibliographystylex
+# do nothing.
+package LaTeXML::Package::Pool;
+use strict;
+use warnings;
+use LaTeXML::Package;
+
+DefPrimitive('\newcites{}{}', sub {
+    my ($stomach, $suffixes, $title) = @_;
+    for my $suffix (split(/,/, ToString($suffixes))) {
+      $suffix =~ s/^\s+|\s+$//g;
+      next unless $suffix;
+      Let(T_CS("\\cite$suffix"),   T_CS('\cite'));
+      Let(T_CS("\\nocite$suffix"), T_CS('\nocite'));
+      DefMacroI(T_CS("\\bibliography$suffix"),      '{}', '');
+      DefMacroI(T_CS("\\bibliographystyle$suffix"), '{}', ''); }
+    return; });
+
+1;

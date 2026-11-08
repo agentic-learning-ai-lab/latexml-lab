@@ -1,0 +1,63 @@
+name: Convert paper HTML
+
+# workflow_dispatch only. Called by `npm run paper:html -- <slug>` in the
+# site repo (build/paper_html.js), which passes the R2 tarball URL and
+# downloads the `latexml-lab-<slug>` artifact afterwards.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tarball_url:
+        description: 'https URL of the paper LaTeX source (.tar.gz)'
+        required: true
+        type: string
+      slug:
+        description: 'Paper slug (artifact name suffix)'
+        required: true
+        type: string
+      correlation_id:
+        description: 'UUID from the local CLI for disambiguating concurrent dispatches'
+        required: true
+        type: string
+
+# Embed the correlation id in the run's display title so the local CLI
+# can find its own run via `gh run list --json displayTitle`.
+run-name: "Convert paper HTML for ${{ inputs.slug }} [${{ inputs.correlation_id }}]"
+
+permissions:
+  contents: read
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Download and extract LaTeX tarball
+        env:
+          TARBALL_URL: ${{ inputs.tarball_url }}
+        run: |
+          set -euo pipefail
+          mkdir -p src
+          curl -fsSL "$TARBALL_URL" -o "$RUNNER_TEMP/source.tar.gz"
+          tar -xzf "$RUNNER_TEMP/source.tar.gz" -C src
+
+      - name: Convert with ar5ivist
+        env:
+          LATEXML_LAB_VERSION: ${{ github.sha }}
+        run: ./convert.sh src out
+
+      - name: Upload paper HTML
+        uses: actions/upload-artifact@v4
+        with:
+          name: latexml-lab-${{ inputs.slug }}
+          path: out
+          retention-days: 7

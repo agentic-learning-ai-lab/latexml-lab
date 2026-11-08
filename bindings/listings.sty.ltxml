@@ -1,0 +1,81 @@
+# -*- mode: Perl -*-
+# /=====================================================================\ #
+# |  listings (first-line fix for \lstnewenvironment)                   | #
+# |                                                                     | #
+# | LaTeXML's stock binding reads the optional argument of a listing    | #
+# | environment with the regular optional reader, which skips (and      | #
+# | discards) the newline after \begin{env} while looking for `['.      | #
+# | listingsReadRawLines then discards the "rest of the \begin line",   | #
+# | i.e. the real first content line.                                   | #
+# |                                                                     | #
+# | Load the stock binding and re-implement only \lstnewenvironment so  | #
+# | it peeks for `[' without skipping whitespace. Plain lstlisting      | #
+# | keeps using the stock code path unchanged.                          | #
+# \=====================================================================#
+package LaTeXML::Package::Pool;
+use strict;
+use warnings;
+use LaTeXML::Package;
+
+# Load the image's own binding, dropping this file's directory from the
+# search path so we don't find ourselves.
+my ($selfdir) = __FILE__ =~ m{^(.*)[/\\][^/\\]+$};
+my @paths = grep { !defined($selfdir)
+    || LaTeXML::Util::Pathname::pathname_canonical($_) ne
+    LaTeXML::Util::Pathname::pathname_canonical($selfdir) }
+  @{ LookupValue('SEARCHPATHS') || [] };
+my $stock = LaTeXML::Util::Pathname::pathname_find('listings.sty.ltxml',
+  paths => \@paths, installation_subdir => 'Package');
+if ($stock) {
+  LaTeXML::Package::loadLTXML('listings.sty', $stock, reloadable => 1); }
+else {
+  Warn('missing_file', 'listings', $STATE->getStomach->getGullet,
+    "Could not locate the stock listings.sty.ltxml binding"); }
+
+#======================================================================
+# Optional argument reader that does not consume the whitespace/newline
+# following \begin{env}.  (The stock `Optional' reader calls readNonSpace,
+# which eats it.)
+DefParameterType('OptionalNoSkip', sub {
+    my ($gullet, $default) = @_;
+    if ($gullet->ifNext(T_OTHER('['))) {
+      return $gullet->readOptional; }
+    return $default; },
+  optional => 1);
+
+sub lst_newenv_params {
+  my ($n, $default) = @_;
+  $n = ToString($n) if ref $n;
+  $n = 0 unless $n;
+  my @params = ();
+  if ($n > 0) {
+    push(@params, LaTeXML::Core::Parameter->new('OptionalNoSkip', '[Default:]',
+        extra => [$default, undef], optional => 1));
+    $n--; }
+  push(@params, map { LaTeXML::Core::Parameter->new('Plain', '{}') } 1 .. $n);
+  return @params ? LaTeXML::Core::Parameters->new(@params) : undef; }
+
+#======================================================================
+# Same as the stock definition, but with OptionalNoSkip for the first
+# (optional) argument.
+
+DefPrimitive('\lstnewenvironment {}[Number][] DefPlain DefPlain', sub {
+    my ($stomach, $name, $n, $opt, $start, $end) = @_;
+    $name = ToString($name);
+    DefMacroI(T_CS("\\begin{$name}"), lst_newenv_params($n, $opt), sub {
+        my ($gullet, @args) = @_;
+        $STATE->getStomach->bgroup;
+        lstPushValueLocally(LISTINGS_POSTAMBLE => $end->substituteParameters(@args));
+        # $start will typically have \lstset, equivalent of lstActivate.
+        # We MUST digest it before the listing string is processed
+        # but it can also contain constructors affecting the listing's xml content.
+        # So, we contrive to treat the already digested material as preamble.
+        my $precs = T_CS('\lst@' . $name . '@preamble');
+        my $pre   = Digest($start->substituteParameters(@args));
+        DefPrimitiveI($precs, undef, sub { return $pre; });
+        lstPushValueLocally(LISTINGS_PREAMBLE => $precs);
+        my $text = listingsReadRawLines($gullet, $name);
+        return lstProcessDisplay(lstGetTokens('name'), $text); });
+    return; });
+
+1;

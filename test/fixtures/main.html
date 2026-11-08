@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>A Tiny Paper</title>
+<style>/* PAGE-STYLE */ body { margin: 0; }</style>
+<style>/* ARTICLE-STYLE */ .ltx_section { color: black; }</style>
+</head>
+<body>
+<nav class="ltx_page_navbar"><a href="#S1">1 Introduction</a></nav>
+<div class="ltx_page_logo">LaTeXML logo</div>
+<article class="ltx_document">
+<h1 class="ltx_title">A Tiny Paper</h1>
+<div class="ltx_abstract"><p>This abstract must be cut.</p></div>
+<nav class="ltx_page_navbar"><a href="#S1">1 Introduction</a></nav>
+<section class="ltx_section" id="S1">
+<h2 class="ltx_title_section">1 Introduction</h2>
+<p>See <a class="ltx_ref" href="#bib.bib1">Smith et al., 2020</a>,, and
+<a class="ltx_ref" href="#bib.bib2">Jones, 2021</a> for details.</p>
+<p>Bad macro: <span class="ltx_ERROR undefined">\rowcolor</span> and
+<span class="ltx_ERROR undefined">\foo</span> with color [HTML]ff0000.</p>
+<p>Punctuation fixes: (a, ) and (b, ; and a table cell,<span class="ltx_text">, </span>year.</p>
+<figure class="ltx_figure">
+<object data="x1.svg" type="image/svg+xml"></object>
+<figcaption>Figure one.</figcaption>
+</figure>
+<figure class="ltx_figure">
+<img src="figs/pic.png" alt="Figure two">
+<figcaption>Figure two.</figcaption>
+</figure>
+</section>
+<footer>Page footer must go.</footer>
+</article>
+</body>
+</html>
