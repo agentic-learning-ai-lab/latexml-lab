@@ -58,6 +58,28 @@ function extractArticle(html) {
 }
 
 /**
+ * The outermost <figure class="ltx_figure…"> elements in `html`, whole
+ * (subfigures are nested <figure>s, so tags are counted, not matched).
+ */
+function frontFigures(html) {
+    const figures = [];
+    const tag = /<(\/?)figure\b[^>]*>/g;
+    let depth = 0;
+    let start = -1;
+    let m;
+    while ((m = tag.exec(html))) {
+        if (!m[1]) {
+            if (depth === 0) start = /\bclass="[^"]*\bltx_figure\b/.test(m[0]) ? m.index : -1;
+            depth++;
+        } else if (depth > 0) {
+            depth--;
+            if (depth === 0 && start >= 0) figures.push(html.substring(start, tag.lastIndex));
+        }
+    }
+    return figures;
+}
+
+/**
  * Apply the arXiv-path cleanup steps to the article body. Order matters:
  * `<object>` figures are promoted before image collection so SVG/data
  * attributes are handled like every other <img>.
@@ -71,9 +93,12 @@ function cleanupContent(content) {
     // Keep only the main content starting from the first section
     // (drops title, authors, abstract, metadata — the site renders its
     // own header from data/papers.yaml).
+    // Figures placed before the first section (a teaser right after
+    // \maketitle) are kept and moved ahead of it.
     const firstSectionMatch = content.match(/(<section[^>]*class="ltx_section[^"]*"[^>]*>)/);
     if (firstSectionMatch) {
-        content = content.substring(content.indexOf(firstSectionMatch[0]));
+        const start = content.indexOf(firstSectionMatch[0]);
+        content = frontFigures(content.substring(0, start)).join('\n') + content.substring(start);
     }
 
     // Rewrite <object data="x.svg"> figures as <img> so image collection
