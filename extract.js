@@ -69,7 +69,7 @@ function frontFigures(html) {
     let m;
     while ((m = tag.exec(html))) {
         if (!m[1]) {
-            if (depth === 0) start = /class="ltx_figure\b/.test(m[0]) ? m.index : -1;
+            if (depth === 0) start = /\bclass="[^"]*\bltx_figure\b/.test(m[0]) ? m.index : -1;
             depth++;
         } else if (depth > 0) {
             depth--;
