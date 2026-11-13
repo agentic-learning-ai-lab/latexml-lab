@@ -52,3 +52,17 @@ test('extract writes paper-content.json and copies figures to assets/', () => {
     assert.ok(fs.existsSync(path.join(out, 'assets', 'figs', 'pic.png')));
     fs.rmSync(out, { recursive: true, force: true });
 });
+
+test('cleanup keeps a figure placed before the first section', () => {
+    const html = `<h1 class="ltx_title">T</h1>
+<div class="ltx_abstract"><p>Abstract.</p></div>
+<figure id="S0.F1" class="ltx_figure"><figure id="S0.F1.sf1" class="ltx_figure ltx_figure_panel"><img src="a.png"></figure>
+<figcaption>Teaser.</figcaption></figure>
+<section class="ltx_section" id="S1"><p>See <a href="#S0.F1">Figure 1</a>.</p></section>`;
+    const content = cleanupContent(html);
+
+    assert.ok(content.startsWith('<figure id="S0.F1" class="ltx_figure">'));
+    assert.ok(content.includes('id="S0.F1.sf1"') && content.includes('Teaser.'));
+    assert.ok(!content.includes('Abstract.'));
+    assert.ok(content.indexOf('Teaser.') < content.indexOf('id="S1"'));
+});
