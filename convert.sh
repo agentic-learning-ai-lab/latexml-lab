@@ -338,6 +338,14 @@ if [ -n "$XCOLOR_OPTS" ]; then
     echo "xcolor: passing options $XCOLOR_OPTS"
 fi
 
+# Box-relative panel-label macros keep their x/y over the image (see
+# panel.js). After the TikZ preview: the rewrite loads lxpanel, which exists
+# only as a LaTeXML binding, so the real TeX engine must not see it.
+PANEL_TEX=()
+while IFS= read -r -d '' f; do PANEL_TEX+=("$f"); done < <(find "$WORK" -name '*.tex' -type f -print0)
+PANEL_COUNT=$(node "$REPO_DIR/panel.js" "${PANEL_TEX[@]}")
+echo "panel labels: rewrote $PANEL_COUNT label macros"
+
 # --path=/work/bindings lets bindings/ in this repo override arXiv's
 # stock bindings. --destination lands the document (and any generated
 # figure files) in $WORK/out/main.html.
