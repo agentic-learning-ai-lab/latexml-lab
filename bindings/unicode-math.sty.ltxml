@@ -37,6 +37,9 @@ DefMacro('\symbb{}',   '\mathbb{#1}');
 DefMacro('\symcal{}',  '\mathcal{#1}');
 DefMacro('\symscr{}',  '\mathscr{#1}');
 DefMacro('\symfrak{}', '\mathfrak{#1}');
-DefMacro('\symbfit{}', '\bm{#1}');
+# Bold italic as its own constructor (as amsbsy's \boldsymbol), not a macro for \bm:
+# papers often define \bm as \symbfit (bm.sty does not work under unicode-math), and
+# \bm -> \symbfit -> \bm loops; LaTeXML's bm binding also lets \boldsymbol = \bm.
+DefConstructor('\symbfit{}', '#1', bounded => 1, requireMath => 1, font => { forcebold => 1 });
 
 1;
