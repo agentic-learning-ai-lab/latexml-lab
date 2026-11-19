@@ -11,7 +11,7 @@ sub lxpanel_percent {
   my ($arg) = @_;
   my $v = ToString($arg);
   $v =~ s/\s+//g;
-  return ($v =~ /^-?(?:\d+\.?\d*|\.\d+)$/) ? sprintf('%.2f%%', 100 * $v) : '0%';
+  return ($v =~ /^[-+]?(?:\d+\.?\d*|\.\d+)$/) ? sprintf('%.2f%%', 100 * $v) : '0%';
 }
 
 DefConstructor('\lxPanelLabel{}{}{}',

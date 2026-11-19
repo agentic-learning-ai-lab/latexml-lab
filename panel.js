@@ -23,6 +23,12 @@ function group(text, i) {
     for (let k = i; k < text.length; k++) {
         const c = text[k];
         if (c === '\\') { k++; continue; }
+        if (c === '%') {  // a comment runs to the end of the line
+            const nl = text.indexOf('\n', k);
+            if (nl < 0) return -1;
+            k = nl;
+            continue;
+        }
         if (c === '{') depth++;
         else if (c === '}' && --depth === 0) return k + 1;
     }
@@ -33,7 +39,7 @@ function rewrite(text) {
     let count = 0;
     let out = '';
     let pos = 0;
-    const DEF = /\\(?:re)?newcommand\*?\s*\{?\s*(\\[A-Za-z@]+)\s*\}?\s*\[\s*3\s*\]\s*\{/g;
+    const DEF = /\\((?:re)?newcommand)\*?\s*\{?\s*(\\[A-Za-z@]+)\s*\}?\s*\[\s*3\s*\]\s*\{/g;
     let m;
     while ((m = DEF.exec(text)) !== null) {
         const bodyStart = m.index + m[0].length - 1;
@@ -51,7 +57,7 @@ function rewrite(text) {
         const content = body.slice(cStart + 1, cEnd - 1);
         if (!content.includes('#3')) continue;
         out += text.slice(pos, m.index) +
-            `\\usepackage{lxpanel}\\newcommand{${m[1]}}[3]{\\lxPanelLabel{#1}{#2}{${content}}}`;
+            `\\usepackage{lxpanel}\\${m[1]}{${m[2]}}[3]{\\lxPanelLabel{#1}{#2}{${content}}}`;
         pos = bodyEnd;
         DEF.lastIndex = bodyEnd;
         count++;

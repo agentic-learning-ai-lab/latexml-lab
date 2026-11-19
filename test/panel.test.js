@@ -20,3 +20,12 @@ test('leaves other three-argument macros alone', () => {
     assert.strictEqual(count, 0);
     assert.strictEqual(out, src);
 });
+
+test('keeps \\renewcommand and ignores braces in comments', () => {
+    const src = '\\renewcommand{\\plab}[3]{% a } in a comment\n' +
+        '\\llap{\\makebox[\\wd0][l]{\\hspace{#1\\wd0}\\raisebox{#2\\ht0}[0pt][0pt]{\\textbf{(#3)}}}}}\nrest\n';
+    const { out, count } = rewrite(src);
+    assert.strictEqual(count, 1);
+    assert.ok(out.startsWith('\\usepackage{lxpanel}\\renewcommand{\\plab}[3]{\\lxPanelLabel{#1}{#2}{\\textbf{(#3)}}}'));
+    assert.ok(out.endsWith('\nrest\n'));
+});
