@@ -20,4 +20,8 @@ DefConstructor('\lxPanelLabel{}{}{}',
     my ($stomach, $x, $y) = @_;
     return (left => lxpanel_percent($x), bottom => lxpanel_percent($y)); });
 
+# The image and its labels in one inline box, the labels' positioning context.
+DefConstructor('\lxPanelBox{}',
+  "<ltx:inline-block class='ltx_panel_box'>#1</ltx:inline-block>");
+
 1;

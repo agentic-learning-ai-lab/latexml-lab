@@ -39,6 +39,7 @@ function rewrite(text) {
     let count = 0;
     let out = '';
     let pos = 0;
+    const names = [];
     const DEF = /\\((?:re)?newcommand)\*?\s*\{?\s*(\\[A-Za-z@]+)\s*\}?\s*\[\s*3\s*\]\s*\{/g;
     let m;
     while ((m = DEF.exec(text)) !== null) {
@@ -58,11 +59,48 @@ function rewrite(text) {
         if (!content.includes('#3')) continue;
         out += text.slice(pos, m.index) +
             `\\usepackage{lxpanel}\\${m[1]}{${m[2]}}[3]{\\lxPanelLabel{#1}{#2}{${content}}}`;
+        names.push(m[2]);
         pos = bodyEnd;
         DEF.lastIndex = bodyEnd;
         count++;
     }
-    return { out: out + text.slice(pos), count };
+    out += text.slice(pos);
+    if (names.length) out = wrapUses(out, names);
+    return { out, count };
+}
+
+// Each `\usebox0` followed by label calls becomes
+// `\lxPanelBox{\usebox0\plab{..}{..}{..}...}`, so the image and its labels
+// share one positioning box in the HTML (LaTeXML otherwise puts an image in
+// a minipage in its own paragraph, apart from the labels).
+function wrapUses(text, names) {
+    const alt = names.map(n => n.replace(/[\\@]/g, c => '\\' + c)).join('|');
+    const USE = new RegExp(`\\\\usebox\\s*\\{?\\s*0\\s*\\}?(?=\\s*(?:${alt})\\b)`, 'g');
+    const CALL = new RegExp(`^\\s*(?:${alt})(?![A-Za-z@])\\s*`);
+    let out = '';
+    let pos = 0;
+    let m;
+    while ((m = USE.exec(text)) !== null) {
+        let end = m.index + m[0].length;
+        let c;
+        while ((c = CALL.exec(text.slice(end))) !== null) {
+            let k = end + c[0].length;
+            let ok = true;
+            for (let a = 0; a < 3; a++) {
+                while (/\s/.test(text[k])) k++;
+                if (text[k] !== '{') { ok = false; break; }
+                const e = group(text, k);
+                if (e < 0) { ok = false; break; }
+                k = e;
+            }
+            if (!ok) break;
+            end = k;
+        }
+        out += text.slice(pos, m.index) + '\\lxPanelBox{' + text.slice(m.index, end) + '}';
+        pos = end;
+        USE.lastIndex = end;
+    }
+    return out + text.slice(pos);
 }
 
 if (require.main === module) {

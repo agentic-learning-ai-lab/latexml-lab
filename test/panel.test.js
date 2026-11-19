@@ -29,3 +29,13 @@ test('keeps \\renewcommand and ignores braces in comments', () => {
     assert.ok(out.startsWith('\\usepackage{lxpanel}\\renewcommand{\\plab}[3]{\\lxPanelLabel{#1}{#2}{\\textbf{(#3)}}}'));
     assert.ok(out.endsWith('\nrest\n'));
 });
+
+test('wraps each \\usebox0 and its label calls in \\lxPanelBox', () => {
+    const src = `${PLAB}\n\\begin{minipage}{\\linewidth}\n` +
+        '\\sbox0{\\includegraphics[width=\\linewidth]{a}}\\usebox0\\plab{0}{0.9}{a}\\plab{0.5}{0.9}{b}\\\\[0.2em]\n' +
+        '\\sbox0{\\includegraphics{b}}\\usebox0 \\plab{0}{0.8}{c}\n\\usebox0 x\n\\end{minipage}\n';
+    const { out } = rewrite(src);
+    assert.ok(out.includes('\\lxPanelBox{\\usebox0\\plab{0}{0.9}{a}\\plab{0.5}{0.9}{b}}\\\\[0.2em]'));
+    assert.ok(out.includes('\\lxPanelBox{\\usebox0 \\plab{0}{0.8}{c}}'));
+    assert.ok(out.includes('\n\\usebox0 x\n'));
+});
