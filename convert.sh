@@ -58,6 +58,9 @@ SUBFIG_TEX=()
 while IFS= read -r -d '' f; do SUBFIG_TEX+=("$f"); done < <(find "$WORK" -name '*.tex' -type f -print0)
 SUBFIG_COUNT=$(node "$REPO_DIR/subfig.js" "${SUBFIG_TEX[@]}")
 echo "subfigures: resized $SUBFIG_COUNT panel widths"
+# Box-relative panel-label macros keep their x/y over the image (see panel.js).
+PANEL_COUNT=$(node "$REPO_DIR/panel.js" "${SUBFIG_TEX[@]}")
+echo "panel labels: rewrote $PANEL_COUNT label macros"
 
 MAIN_PATH="$WORK/$MAIN"
 MAIN_DIR=$(dirname "$MAIN")

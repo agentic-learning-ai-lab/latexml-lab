@@ -1,0 +1,23 @@
+# -*- mode: Perl -*-
+# Panel labels placed over a figure (see panel.js). \lxPanelLabel{x}{y}{label}
+# emits <ltx:text class="ltx_panel_label"> with left/bottom as percentages of
+# the image box, for the page's CSS to position absolutely.
+package LaTeXML::Package::Pool;
+use strict;
+use warnings;
+use LaTeXML::Package;
+
+sub lxpanel_percent {
+  my ($arg) = @_;
+  my $v = ToString($arg);
+  $v =~ s/\s+//g;
+  return ($v =~ /^-?(?:\d+\.?\d*|\.\d+)$/) ? sprintf('%.2f%%', 100 * $v) : '0%';
+}
+
+DefConstructor('\lxPanelLabel{}{}{}',
+  "<ltx:text class='ltx_panel_label' cssstyle='left:#left;bottom:#bottom'>#3</ltx:text>",
+  properties => sub {
+    my ($stomach, $x, $y) = @_;
+    return (left => lxpanel_percent($x), bottom => lxpanel_percent($y)); });
+
+1;
