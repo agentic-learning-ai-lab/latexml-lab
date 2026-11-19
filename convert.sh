@@ -58,6 +58,9 @@ SUBFIG_TEX=()
 while IFS= read -r -d '' f; do SUBFIG_TEX+=("$f"); done < <(find "$WORK" -name '*.tex' -type f -print0)
 SUBFIG_COUNT=$(node "$REPO_DIR/subfig.js" "${SUBFIG_TEX[@]}")
 echo "subfigures: resized $SUBFIG_COUNT panel widths"
+# Width-only adjustbox around a table: drop the wrapper (see adjustbox.js).
+ADJBOX_COUNT=$(node "$REPO_DIR/adjustbox.js" "${SUBFIG_TEX[@]}")
+echo "adjustbox: unwrapped $ADJBOX_COUNT tables"
 
 MAIN_PATH="$WORK/$MAIN"
 MAIN_DIR=$(dirname "$MAIN")
